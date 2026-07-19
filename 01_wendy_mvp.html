@@ -131,6 +131,43 @@
          font-family:Verdana,sans-serif;font-size:.8rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
   .toast.show{opacity:1}
   .muted{color:var(--ink-soft);font-family:Verdana,sans-serif;font-size:.78rem}
+
+  /* pill island (repeat-client identification) */
+  .suggest-list{list-style:none;margin-top:-8px;margin-bottom:12px}
+  .suggest-list li{background:#fff;border:1.5px solid var(--line);border-radius:10px;
+    padding:9px 14px;margin-bottom:6px;cursor:pointer;font-family:Verdana,sans-serif;font-size:.83rem;
+    display:flex;justify-content:space-between}
+  .suggest-list li:hover{border-color:var(--accent);background:var(--bg-soft)}
+  .pill-island{display:none;align-items:center;gap:12px;background:#eaf6ef;border:2px solid var(--ok);
+    border-radius:999px;padding:10px 20px;margin:6px 0 16px;font-family:Verdana,sans-serif;font-size:.88rem;cursor:pointer}
+  .pill-island .tick{color:var(--ok);font-size:1.1rem}
+  .pill-island:hover{background:#ddf0e6}
+
+  /* sessions board: 3 islands */
+  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+  .island{background:var(--card);border:2px solid var(--line);border-radius:var(--radius);
+    padding:20px;box-shadow:var(--shadow)}
+  .island h3{font-weight:normal;font-size:1.05rem;margin-bottom:4px}
+  .island .cnt{font-family:Verdana,sans-serif;font-size:.68rem;color:var(--ink-soft);margin-bottom:14px}
+  .entry{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:11px 13px;
+    margin-bottom:9px;cursor:pointer;font-family:Verdana,sans-serif;font-size:.8rem}
+  .entry:hover{border-color:var(--accent)}
+  .entry .e-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .entry .e-when{color:var(--ink-soft);font-size:.72rem;margin-top:3px}
+  .entry .e-detail{display:none;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;
+    font-size:.75rem;line-height:1.7;color:var(--ink-soft)}
+  .entry.open .e-detail{display:block}
+  .paystate{font-size:.65rem;border-radius:999px;padding:2px 9px}
+  .paystate.paid{background:#d9efe3;color:var(--ok)}
+  .paystate.unpaid{background:#fbe9e7;color:var(--red)}
+
+  /* post-session popup */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(22,50,79,.45);z-index:100;
+    align-items:center;justify-content:center;padding:20px}
+  .overlay.show{display:flex}
+  .modal{background:var(--card);border:2px solid var(--accent);border-radius:var(--radius);
+    max-width:520px;width:100%;padding:26px;box-shadow:var(--shadow)}
+  .modal h3{font-weight:normal;margin-bottom:4px}
   .sync-pill{position:fixed;top:12px;right:14px;font-family:Verdana,sans-serif;font-size:.65rem;
              background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--ink-soft);z-index:98}
 </style>
@@ -217,9 +254,14 @@
     <h1 style="font-size:1.5rem">Welcome back</h1>
     <p class="sub">Enter your name or client ID to request a session.</p>
     <div class="field"><label>Name or client ID</label>
-      <input id="repeat-input" placeholder="e.g. Anita Rao or WB-0001"></div>
-    <div class="btn-row"><button class="btn" onclick="repeatLookup()">Request a session</button></div>
-    <p class="muted" id="repeat-msg" style="margin-top:12px"></p>
+      <input id="repeat-input" placeholder="e.g. Anita Rao or WB-0001" autocomplete="off"
+        oninput="repeatSuggest()" onkeydown="if(event.key==='Enter')repeatSuggest(true)"></div>
+    <ul class="suggest-list" id="repeat-suggest"></ul>
+    <div class="pill-island" id="repeat-pill" onclick="repeatRequest()">
+      <span class="tick">✔</span><span id="repeat-pill-text"></span>
+      <span class="uid" style="margin-left:auto">tap to request a session</span>
+    </div>
+    <p class="muted" id="repeat-msg" style="margin-top:6px"></p>
   </div>
 </div>
 
@@ -309,8 +351,8 @@
         <rect x="24" y="66" width="52" height="14" rx="7"/>
         <path d="M32 29 h4 M32 51 h4 M32 73 h4"/>
       </g></svg>
-      <div class="t-title">Session requests</div>
-      <div class="t-desc">New and returning clients waiting for a slot.</div>
+      <div class="t-title">Sessions board</div>
+      <div class="t-desc">Requests in queue · upcoming · past sessions.</div>
     </div>
     <div class="tile" onclick="go('pg-c-recall')">
       <svg viewBox="0 0 100 100"><g class="doodle">
@@ -342,12 +384,25 @@
 
 <!-- ================= CONSOLE: QUEUE ================= -->
 <div class="page" id="pg-c-queue">
-  <div class="navbar" data-crumbs="Home>pg-landing|Therapy>pg-therapy|Console>pg-console|Session requests"></div>
-  <div class="card wide">
-    <h1 style="font-size:1.4rem">Session requests in queue</h1>
-    <p class="sub">Every client submission lands here, newest first. Schedule to clear.</p>
-    <ul class="result-list" id="queue-list"></ul>
-    <p class="muted" id="queue-empty" style="display:none">Queue is clear. Nothing pending.</p>
+  <div class="navbar" data-crumbs="Home>pg-landing|Therapy>pg-therapy|Console>pg-console|Sessions board"></div>
+  <h1 style="font-size:1.4rem">Sessions board</h1>
+  <p class="sub">Left to right: waiting → booked → done. Tap any entry for details.</p>
+  <div class="board">
+    <div class="island">
+      <h3>Requests in queue</h3><div class="cnt" id="cnt-queue"></div>
+      <ul class="result-list" id="queue-list" style="margin:0"></ul>
+      <p class="muted" id="queue-empty" style="display:none">Queue is clear.</p>
+    </div>
+    <div class="island">
+      <h3>Upcoming sessions</h3><div class="cnt" id="cnt-upcoming"></div>
+      <div id="upcoming-list"></div>
+      <p class="muted" id="upcoming-empty" style="display:none">Nothing booked from today onwards.</p>
+    </div>
+    <div class="island">
+      <h3>Past sessions</h3><div class="cnt" id="cnt-past"></div>
+      <div id="past-list"></div>
+      <p class="muted" id="past-empty" style="display:none">No completed sessions yet.</p>
+    </div>
   </div>
 </div>
 
@@ -421,6 +476,22 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- post-session popup -->
+<div class="overlay" id="ps-overlay">
+  <div class="modal">
+    <h3 id="ps-title">Session ended</h3>
+    <p class="kv" id="ps-sub"></p>
+    <div class="field"><label>Session notes</label>
+      <textarea id="ps-notes" rows="3" placeholder="Themes, homework, anything to carry forward…"></textarea></div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn" id="ps-paid-btn" onclick="psTogglePaid()">Mark paid</button>
+      <button class="btn" onclick="psComplete()">Completed →</button>
+      <button class="btn ghost" onclick="psDefer()">Defer notes</button>
+    </div>
+    <p class="muted" style="margin-top:10px">Completed moves this session to the Past island. Paid updates Numbers.</p>
+  </div>
+</div>
+
 <script>
 /* =====================================================================
    GOOGLE SHEETS INTEGRATION (restricted-access model)
@@ -459,11 +530,11 @@ const DB = {
     {uid:'WB-0003', name:'Priya Sharma', phone:'98450 33333', email:'priya@example.com', city:'Bengaluru', registered:'2026-06-11'},
   ],
   sessions: [
-    {sid:'S-101', uid:'WB-0001', date:'2026-06-05', time:'18:00', fee:2500, pay:'UPI',           notes:'First session. Work stress; sleep affected. Good rapport.'},
-    {sid:'S-102', uid:'WB-0001', date:'2026-06-19', time:'18:00', fee:2500, pay:'UPI',           notes:'Discussed boundaries with manager. Homework: journaling.'},
-    {sid:'S-103', uid:'WB-0002', date:'2026-06-22', time:'19:30', fee:2500, pay:'Bank transfer', notes:'Intake follow-up. Relationship focus.'},
-    {sid:'S-104', uid:'WB-0003', date:'2026-07-01', time:'11:00', fee:3000, pay:'Cash',          notes:'Extended session (90 min) — adjusted fee.'},
-    {sid:'S-105', uid:'WB-0001', date:'2026-07-10', time:'18:00', fee:2500, pay:'Pending',       notes:''},
+    {sid:'S-101', uid:'WB-0001', date:'2026-06-05', time:'18:00', fee:2500, pay:'UPI',           paid:true,  status:'completed', notes:'First session. Work stress; sleep affected. Good rapport.'},
+    {sid:'S-102', uid:'WB-0001', date:'2026-06-19', time:'18:00', fee:2500, pay:'UPI',           paid:true,  status:'completed', notes:'Discussed boundaries with manager. Homework: journaling.'},
+    {sid:'S-103', uid:'WB-0002', date:'2026-06-22', time:'19:30', fee:2500, pay:'Bank transfer', paid:true,  status:'completed', notes:'Intake follow-up. Relationship focus.'},
+    {sid:'S-104', uid:'WB-0003', date:'2026-07-01', time:'11:00', fee:3000, pay:'Cash',          paid:true,  status:'completed', notes:'Extended session (90 min) — adjusted fee.'},
+    {sid:'S-105', uid:'WB-0001', date:'2026-07-10', time:'18:00', fee:2500, pay:'UPI',           paid:false, status:'completed', notes:''},
   ],
   requests: [
     {rid:'R-201', uid:'WB-0002', name:'Rahul Menon', type:'Returning', at:'2026-07-18T10:12:00', status:'pending'},
@@ -471,13 +542,36 @@ const DB = {
   nextClientNum:4, nextSid:106, nextRid:202,
   addClient(rec){ rec.uid='WB-000'+(this.nextClientNum++); this.clients.push(rec); sheetSync('append_client',rec); return rec.uid; },
   addSession(rec){ rec.sid='S-'+(this.nextSid++); this.sessions.push(rec); sheetSync('append_session',rec); return rec.sid; },
-  addRequest(rec){ rec.rid='R-'+(this.nextRid++); rec.status='pending'; rec.at=new Date().toISOString(); this.requests.unshift(rec); sheetSync('append_request',rec); updateQueueDot(); return rec.rid; },
+  addRequest(rec){
+    // HARD STOP: one request per client per calendar day (to review with Wendy)
+    const today=new Date().toISOString().slice(0,10);
+    const dup=this.requests.find(r=>r.uid===rec.uid && r.at.slice(0,10)===today);
+    if(dup) return null;
+    rec.rid='R-'+(this.nextRid++); rec.status='pending'; rec.at=new Date().toISOString();
+    this.requests.unshift(rec); sheetSync('append_request',rec); updateQueueDot(); return rec.rid; },
   clearRequest(rid){ const r=this.requests.find(x=>x.rid===rid); if(r){r.status='scheduled'; sheetSync('update_request',r);} updateQueueDot(); },
   findClients(q){ q=q.trim().toLowerCase(); if(!q) return [];
     return this.clients.filter(c=>c.name.toLowerCase().includes(q)||c.uid.toLowerCase().includes(q)); },
   sessionsFor(uid){ return this.sessions.filter(s=>s.uid===uid).sort((a,b)=>b.date.localeCompare(a.date)); },
   pendingCount(){ return this.requests.filter(r=>r.status==='pending').length; }
 };
+
+/* Demo-only dynamic seeds: two upcoming bookings + one that ended
+   earlier today (status 'scheduled') so the post-session popup fires. */
+(function(){
+  const iso=d=>d.toISOString().slice(0,10);
+  const now=new Date();
+  const t1=new Date(now); t1.setDate(t1.getDate()+1);
+  const t2=new Date(now); t2.setDate(t2.getDate()+3);
+  const ago=new Date(now.getTime()-2*3600*1000); // started 2h ago -> ended ~1h ago
+  const hh=String(ago.getHours()).padStart(2,'0')+':'+String(ago.getMinutes()).padStart(2,'0');
+  DB.sessions.push(
+    {sid:'S-106', uid:'WB-0002', date:iso(t1), time:'18:00', fee:2500, pay:'UPI', paid:false, status:'scheduled', notes:''},
+    {sid:'S-107', uid:'WB-0003', date:iso(t2), time:'11:00', fee:2500, pay:'UPI', paid:false, status:'scheduled', notes:''},
+    {sid:'S-108', uid:'WB-0001', date:iso(now), time:hh,    fee:2500, pay:'UPI', paid:false, status:'scheduled', notes:''}
+  );
+  DB.nextSid=109;
+})();
 
 /* ============ DATES: store ISO, show DD/MM/YYYY everywhere ============ */
 function fmtD(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
@@ -526,23 +620,51 @@ function submitIntake(){
     consent:{agreed:true, at:new Date().toISOString(), version:'v1'},
     registered:new Date().toISOString().slice(0,10)
   });
-  DB.addRequest({uid, name, type:'New client'});
+  DB.addRequest({uid, name, type:'New client'}); // new UID -> can't collide with today's requests
   document.getElementById('done-title').textContent='Welcome, '+name.split(' ')[0];
   document.getElementById('done-text').innerHTML=
     'You\'re registered — your client ID is <strong>'+uid+'</strong>. Wendy will connect and confirm an available slot soon. Please keep a lookout for a Google Meet link in your email.';
   go('pg-client-done');
 }
-function repeatLookup(){
+let repeatSelected=null;
+function repeatSuggest(enterPressed){
   const q=document.getElementById('repeat-input').value;
-  const hits=DB.findClients(q); const msg=document.getElementById('repeat-msg');
-  if(hits.length===1){
-    DB.addRequest({uid:hits[0].uid, name:hits[0].name, type:'Returning'});
-    document.getElementById('done-title').textContent='Session requested';
-    document.getElementById('done-text').textContent=
-      'Thanks, '+hits[0].name.split(' ')[0]+'. Wendy will connect and confirm an available slot soon. Please keep a lookout for a Google Meet link in your email.';
-    go('pg-client-done');
-  } else if(hits.length>1){ msg.textContent='More than one match — try your client ID (e.g. WB-0001).'; }
-  else { msg.innerHTML='No record found. New here? <a style="color:var(--accent-deep);cursor:pointer" onclick="go(\'pg-intake\')">Register first</a>.'; }
+  const ul=document.getElementById('repeat-suggest');
+  const pill=document.getElementById('repeat-pill');
+  const msg=document.getElementById('repeat-msg');
+  msg.textContent=''; pill.style.display='none'; repeatSelected=null; ul.innerHTML='';
+  const hits=DB.findClients(q);
+  if(!q.trim()) return;
+  if(hits.length===0){
+    if(enterPressed) msg.innerHTML='No record found. New here? <a style="color:var(--accent-deep);cursor:pointer" onclick="go(\'pg-intake\')">Register first</a>.';
+    return;
+  }
+  if(hits.length===1 || enterPressed){ repeatPick(hits[0]); return; }
+  hits.slice(0,5).forEach(c=>{
+    const li=document.createElement('li');
+    li.innerHTML='<span>'+c.name+'</span><span class="uid">'+c.uid+'</span>';
+    li.onclick=()=>repeatPick(c);
+    ul.appendChild(li);
+  });
+}
+function repeatPick(c){
+  repeatSelected=c;
+  document.getElementById('repeat-suggest').innerHTML='';
+  document.getElementById('repeat-pill-text').textContent=c.name+' · '+c.uid;
+  document.getElementById('repeat-pill').style.display='flex';
+}
+function repeatRequest(){
+  if(!repeatSelected) return;
+  const rid=DB.addRequest({uid:repeatSelected.uid, name:repeatSelected.name, type:'Returning'});
+  if(rid===null){
+    document.getElementById('repeat-msg').textContent=
+      'You already have a session request in today — Wendy will be in touch shortly. One request per day keeps the queue fair.';
+    return;
+  }
+  document.getElementById('done-title').textContent='Session requested';
+  document.getElementById('done-text').textContent=
+    'Thanks, '+repeatSelected.name.split(' ')[0]+'. Wendy will connect and confirm an available slot soon. Please keep a lookout for a Google Meet link in your email.';
+  go('pg-client-done');
 }
 
 /* ============ AUTH ============ */
@@ -553,19 +675,100 @@ function doAuth(){
 }
 
 /* ============ QUEUE ============ */
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function dayName(iso){ return DAYS[new Date(iso+'T00:00:00').getDay()]; }
+function clientName(uid){ const c=DB.clients.find(x=>x.uid===uid); return c?c.name:uid; }
+
 function renderQueue(){
+  // Island 1 — pending requests
   const ul=document.getElementById('queue-list'); ul.innerHTML='';
   const pend=DB.requests.filter(r=>r.status==='pending');
   document.getElementById('queue-empty').style.display= pend.length? 'none':'block';
+  document.getElementById('cnt-queue').textContent=pend.length+' waiting';
   pend.forEach(r=>{
     const li=document.createElement('li');
-    li.style.cursor='default';
+    li.style.cursor='default'; li.style.flexDirection='column'; li.style.alignItems='stretch';
     li.innerHTML='<span>'+r.name+' <span class="tag">'+r.type+'</span></span>'+
-      '<span class="uid">'+r.uid+' · '+fmtD(r.at.slice(0,10))+'</span>'+
+      '<span class="uid" style="margin:4px 0">'+r.uid+' · asked '+fmtD(r.at.slice(0,10))+'</span>'+
       '<button class="btn small" onclick="queueToSched(\''+r.rid+'\',\''+r.uid+'\')">Schedule →</button>';
     ul.appendChild(li);
   });
+
+  // Island 2 — upcoming (today onwards, scheduled)
+  const today=new Date().toISOString().slice(0,10);
+  const up=DB.sessions.filter(s=>s.status==='scheduled' && s.date>=today)
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  fillIsland('upcoming', up);
+
+  // Island 3 — past (last 20 completed, newest first)
+  const past=DB.sessions.filter(s=>s.status==='completed')
+    .sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time)).slice(0,20);
+  fillIsland('past', past);
 }
+function fillIsland(kind, list){
+  const box=document.getElementById(kind+'-list'); box.innerHTML='';
+  document.getElementById(kind+'-empty').style.display=list.length?'none':'block';
+  document.getElementById('cnt-'+kind).textContent=
+    kind==='upcoming'? list.length+' booked' : list.length+' shown (last 20)';
+  list.forEach(s=>{
+    const div=document.createElement('div'); div.className='entry';
+    const pv=s.paid?'<span class="paystate paid">paid</span>':'<span class="paystate unpaid">unpaid</span>';
+    div.innerHTML=
+      '<div class="e-top"><span>'+clientName(s.uid)+'</span>'+pv+'</div>'+
+      '<div class="e-when">'+dayName(s.date)+' · '+fmtD(s.date)+' · '+s.time+'</div>'+
+      '<div class="e-detail">'+s.uid+' · ₹'+s.fee+' via '+s.pay+'<br>'+
+        (s.notes? 'Note: '+s.notes : 'No note yet.')+
+        (s.status==='scheduled'?
+          '<div class="btn-row" style="margin-top:8px">'+
+          (!s.paid?'<button class="btn small" onclick="event.stopPropagation();markPaid(\''+s.sid+'\')">Mark paid</button>':'')+
+          '<button class="btn small ghost" onclick="event.stopPropagation();openPS(\''+s.sid+'\')">Complete…</button></div>'
+        : (!s.paid?'<div class="btn-row" style="margin-top:8px"><button class="btn small" onclick="event.stopPropagation();markPaid(\''+s.sid+'\')">Mark paid</button></div>':''))+
+      '</div>';
+    div.onclick=()=>div.classList.toggle('open');
+    box.appendChild(div);
+  });
+}
+function markPaid(sid){
+  const s=DB.sessions.find(x=>x.sid===sid); s.paid=true;
+  sheetSync('update_session',s); toast('Marked paid — Numbers updated'); renderQueue();
+}
+
+/* ============ POST-SESSION POPUP (assumes 60-min sessions) ============ */
+const SESSION_MINS=60;
+let psSid=null; const psPrompted={};
+function sessionEnd(s){ return new Date(s.date+'T'+s.time+':00').getTime()+SESSION_MINS*60000; }
+function psCheck(){
+  if(!document.getElementById('pg-console').classList.contains('active') &&
+     !document.querySelector('#pg-c-queue.active,#pg-c-recall.active,#pg-c-sched.active,#pg-c-numbers.active')) return;
+  const now=Date.now();
+  const due=DB.sessions.find(s=>s.status==='scheduled' && !psPrompted[s.sid] && now > sessionEnd(s)+10000);
+  if(due) openPS(due.sid);
+}
+function openPS(sid){
+  const s=DB.sessions.find(x=>x.sid===sid); psSid=sid; psPrompted[sid]=true;
+  document.getElementById('ps-title').textContent='Session ended — '+clientName(s.uid);
+  document.getElementById('ps-sub').textContent=dayName(s.date)+' · '+fmtD(s.date)+' · '+s.time+' · ₹'+s.fee;
+  document.getElementById('ps-notes').value=s.notes||'';
+  document.getElementById('ps-paid-btn').textContent=s.paid?'Paid ✔':'Mark paid';
+  document.getElementById('ps-overlay').classList.add('show');
+}
+function psTogglePaid(){
+  const s=DB.sessions.find(x=>x.sid===psSid); s.paid=!s.paid;
+  document.getElementById('ps-paid-btn').textContent=s.paid?'Paid ✔':'Mark paid';
+  sheetSync('update_session',s);
+}
+function psComplete(){
+  const s=DB.sessions.find(x=>x.sid===psSid);
+  s.notes=document.getElementById('ps-notes').value; s.status='completed';
+  sheetSync('update_session',s);
+  document.getElementById('ps-overlay').classList.remove('show');
+  toast('Moved to Past sessions'); renderQueue(); }
+function psDefer(){
+  const s=DB.sessions.find(x=>x.sid===psSid);
+  s.notes=document.getElementById('ps-notes').value; sheetSync('update_session',s);
+  document.getElementById('ps-overlay').classList.remove('show');
+  toast('Deferred — find it in Upcoming to complete later'); }
+setInterval(psCheck, 15000);
 let pendingRid=null;
 function queueToSched(rid, uid){
   pendingRid=rid;
@@ -642,10 +845,13 @@ function saveSession(){
   if(!iso){ toast('Date needs to be DD/MM/YYYY'); return; }
   DB.addSession({ uid:schedUID, date:iso, time:document.getElementById('sched-time').value,
     fee:Number(document.getElementById('sched-fee').value)||STANDARD_RATE,
-    pay:document.getElementById('sched-pay').value, notes:'' });
+    pay:document.getElementById('sched-pay').value, paid:false, status:'scheduled', notes:'' });
   if(pendingRid){ DB.clearRequest(pendingRid); pendingRid=null; }
-  const via=document.querySelector('input[name="invite"]:checked').value==='gcal'?'Google Calendar event':'Google Meet link';
-  toast('Session saved — '+via+' queued (demo)');
+  const via=document.querySelector('input[name="invite"]:checked').value;
+  const cl=DB.clients.find(c=>c.uid===schedUID);
+  sheetSync('create_meet_event', { uid:schedUID, name:cl.name, email:cl.email||'',
+    date:iso, time:document.getElementById('sched-time').value, mins:SESSION_MINS, withMeet: via==='gmeet' });
+  toast('Session saved — '+(via==='gcal'?'Calendar event':'Meet invite')+' sent to Apps Script');
   document.getElementById('sched-form').style.display='none';
   document.getElementById('sched-input').value='';
 }
@@ -653,24 +859,27 @@ function saveSession(){
 /* ============ NUMBERS ============ */
 function renderNumbers(){
   const s=DB.sessions;
-  const gross=s.reduce((a,x)=>a+x.fee,0);
-  const pending=s.filter(x=>x.pay==='Pending').reduce((a,x)=>a+x.fee,0);
-  const thisMonth=s.filter(x=>x.date.startsWith('2026-07'));
+  const done=s.filter(x=>x.status==='completed');
+  const gross=done.reduce((a,x)=>a+x.fee,0);
+  const collected=s.filter(x=>x.paid).reduce((a,x)=>a+x.fee,0);
+  const unpaid=done.filter(x=>!x.paid).reduce((a,x)=>a+x.fee,0);
+  const ym=new Date().toISOString().slice(0,7);
   document.getElementById('numbers-grid').innerHTML=
-    numCard('Total sessions', s.length, 'all time')+
-    numCard('Gross income', '₹'+gross.toLocaleString('en-IN'), 'all recorded sessions')+
-    numCard('Collected', '₹'+(gross-pending).toLocaleString('en-IN'), 'received')+
-    numCard('Pending', '₹'+pending.toLocaleString('en-IN'), 'awaiting payment')+
-    numCard('Sessions this month', thisMonth.length, 'July 2026')+
+    numCard('Completed sessions', done.length, 'all time')+
+    numCard('Booked ahead', s.filter(x=>x.status==='scheduled').length, 'upcoming')+
+    numCard('Earned', '₹'+gross.toLocaleString('en-IN'), 'completed sessions')+
+    numCard('Collected', '₹'+collected.toLocaleString('en-IN'), 'payments received')+
+    numCard('Unpaid', '₹'+unpaid.toLocaleString('en-IN'), 'completed, awaiting payment')+
+    numCard('Sessions this month', s.filter(x=>x.date.startsWith(ym)).length, 'incl. booked')+
     numCard('Clients on record', DB.clients.length, 'registered');
   document.getElementById('tax-table').innerHTML=
     '<tr><th>Date</th><th>Amount (₹)</th><th>Mode</th></tr>'+
-    s.filter(x=>x.pay!=='Pending').map(x=>'<tr><td>'+fmtD(x.date)+'</td><td>'+x.fee+'</td><td>'+x.pay+'</td></tr>').join('');
+    s.filter(x=>x.paid).map(x=>'<tr><td>'+fmtD(x.date)+'</td><td>'+x.fee+'</td><td>'+x.pay+'</td></tr>').join('');
 }
 function numCard(l,v,h){return '<div class="num-card"><div class="lbl">'+l+'</div><div class="val">'+v+'</div><div class="hint">'+h+'</div></div>'}
 function exportTax(){
   const rows=[['Date','Amount','Mode']].concat(
-    DB.sessions.filter(x=>x.pay!=='Pending').map(x=>[fmtD(x.date),x.fee,x.pay]));
+    DB.sessions.filter(x=>x.paid).map(x=>[fmtD(x.date),x.fee,x.pay]));
   const csv=rows.map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);

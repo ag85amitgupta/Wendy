@@ -444,12 +444,8 @@
         <div class="field"><label>Payment mode</label>
           <select id="sched-pay"><option>UPI</option><option>Bank transfer</option><option>Cash</option><option>Pending</option></select></div>
       </div>
-      <div class="field"><label>Create invite via</label>
-        <div class="radio-row">
-          <label><input type="radio" name="invite" value="gcal" checked> Google Calendar</label>
-          <label><input type="radio" name="invite" value="gmeet"> Google Meet link</label>
-        </div>
-        <p class="muted">Live build: one Apps Script call creates the Calendar event <em>with</em> the Meet link and emails the client.</p>
+      <div class="field"><label>Invite</label>
+        <p class="muted" style="padding-top:4px">Saving creates the Google Calendar event with the Meet link and emails the invite to the client automatically.</p>
       </div>
       <div class="btn-row">
         <button class="btn" onclick="saveSession()">Save session &amp; send invite</button>
@@ -847,11 +843,10 @@ function saveSession(){
     fee:Number(document.getElementById('sched-fee').value)||STANDARD_RATE,
     pay:document.getElementById('sched-pay').value, paid:false, status:'scheduled', notes:'' });
   if(pendingRid){ DB.clearRequest(pendingRid); pendingRid=null; }
-  const via=document.querySelector('input[name="invite"]:checked').value;
   const cl=DB.clients.find(c=>c.uid===schedUID);
   sheetSync('create_meet_event', { uid:schedUID, name:cl.name, email:cl.email||'',
-    date:iso, time:document.getElementById('sched-time').value, mins:SESSION_MINS, withMeet: via==='gmeet' });
-  toast('Session saved — '+(via==='gcal'?'Calendar event':'Meet invite')+' sent to Apps Script');
+    date:iso, time:document.getElementById('sched-time').value, mins:SESSION_MINS, withMeet:true });
+  toast('Session saved — Meet invite on its way to '+cl.name.split(' ')[0]);
   document.getElementById('sched-form').style.display='none';
   document.getElementById('sched-input').value='';
 }
